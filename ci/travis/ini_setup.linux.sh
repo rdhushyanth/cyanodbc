@@ -8,14 +8,14 @@
 cat >/tmp/odbcinst.ini <<EOF
 [SQLite ODBC Driver]
 Description=SQLite ODBC Driver
-Driver=libsqliteodbc.so
-Setup=libsqliteodbc.so
+Driver=/usr/lib/x86_64-linux-gnu/odbc/libsqliteodbc.so
+Setup=/usr/lib/x86_64-linux-gnu/odbc/libsqliteodbc.so
 UsageCount=2
 
 [SQLite3 ODBC Driver]
 Description=SQLite3 ODBC Driver
-Driver=libsqlite3odbc.so
-Setup=libsqlite3odbc.so
+Driver=/usr/lib/x86_64-linux-gnu/odbc/libsqlite3odbc.so
+Setup=/usr/lib/x86_64-linux-gnu/odbc/libsqlite3odbc.so
 UsageCount=2
 EOF
 

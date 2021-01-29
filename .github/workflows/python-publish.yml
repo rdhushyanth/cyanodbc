@@ -1,0 +1,106 @@
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+name: Buld/Test/Publish
+
+jobs:
+  deploy:
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-16.04, PYTHONVER: 3.5,  CYANOCMAKEFLAGS: -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: manylinux1_x86_64, CONDASCRIPT: Miniconda3-latest-Linux-x86_64.sh}
+          - {os: ubuntu-16.04, PYTHONVER: 3.6,  CYANOCMAKEFLAGS: -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: manylinux1_x86_64, CONDASCRIPT: Miniconda3-latest-Linux-x86_64.sh}
+          - {os: ubuntu-16.04, PYTHONVER: 3.7,  CYANOCMAKEFLAGS: -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: manylinux1_x86_64, CONDASCRIPT: Miniconda3-latest-Linux-x86_64.sh}
+          - {os: ubuntu-16.04, PYTHONVER: 3.8,  CYANOCMAKEFLAGS: -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: manylinux1_x86_64, CONDASCRIPT: Miniconda3-latest-Linux-x86_64.sh}
+          - {os: macos-10.15, PYTHONVER: 3.5,  CYANOCC: /usr/local/opt/llvm/bin/clang, CYANOCXX: /usr/local/opt/llvm/bin/clang++, CYANOCMAKEFLAGS: -DNANODBC_ENABLE_BOOST=ON -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: macosx_10_11_intel, CONDASCRIPT: Miniconda3-latest-MacOSX-x86_64.sh}
+          - {os: macos-10.15, PYTHONVER: 3.6,  CYANOCC: /usr/local/opt/llvm/bin/clang, CYANOCXX: /usr/local/opt/llvm/bin/clang++, CYANOCMAKEFLAGS: -DNANODBC_ENABLE_BOOST=ON -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: macosx_10_11_intel, CONDASCRIPT: Miniconda3-latest-MacOSX-x86_64.sh}
+          - {os: macos-10.15, PYTHONVER: 3.7,  CYANOCC: /usr/local/opt/llvm/bin/clang, CYANOCXX: /usr/local/opt/llvm/bin/clang++, CYANOCMAKEFLAGS: -DNANODBC_ENABLE_BOOST=ON -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: macosx_10_11_intel, CONDASCRIPT: Miniconda3-latest-MacOSX-x86_64.sh}
+          - {os: macos-10.15, PYTHONVER: 3.8,  CYANOCC: /usr/local/opt/llvm/bin/clang, CYANOCXX: /usr/local/opt/llvm/bin/clang++, CYANOCMAKEFLAGS: -DNANODBC_ENABLE_BOOST=ON -DNANODBC_ODBC_VERSION=SQL_OV_ODBC3, PLATWHEEL: macosx_10_11_intel, CONDASCRIPT: Miniconda3-latest-MacOSX-x86_64.sh}
+
+    name: ${{ matrix.config.os }} ${{ matrix.config.PYTHONVER}}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+          submodules: recursive
+    - name: Install Linux System dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update \
+        && sudo apt-get install -y \
+          unixodbc unixodbc-dev libsqliteodbc
+    - name: Install OSX System dependencies
+      if: runner.os == 'macOS'
+      run: |
+        brew bundle
+        brew services run postgresql
+        sleep 10
+        createuser -s postgres
+    - name: Install conda and python dependencies
+      run: |
+        wget https://repo.continuum.io/miniconda/${{ matrix.config.CONDASCRIPT }} -O ~/miniconda.sh
+        bash ~/miniconda.sh -b -p $HOME/miniconda
+        export PATH="$HOME/miniconda/bin:$PATH"
+        conda create -q -y -n mypy python=${{ matrix.config.PYTHONVER }}
+        source $HOME/miniconda/bin/activate mypy
+        python -m pip install --upgrade pip
+        conda install -q -y cmake pytest cython ninja pytest-cov twine keyring
+        conda install -q -y -c conda-forge codecov distro rfc3986
+    - if: runner.os == 'Linux'
+      run: |
+        ${{ github.workspace }}/ci/travis/ini_setup.linux.sh
+    - if: runner.os == 'macOS'
+      run: ${{ github.workspace }}/ci/travis/ini_setup.osx.sh
+    - name: DEV version bump
+      if: startsWith(github.ref, 'refs/tags/') != true
+      run: |
+        cd ${{ github.workspace }}
+        # If we are not tagged / dealing with a release, we insert / auto incrementing
+        # fourth grouping in the package version
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          sed -i "" "s/$/.$GITHUB_RUN_ID/" ${{ github.workspace }}/VERSION
+        else
+          sed -i "s/$/.$GITHUB_RUN_ID/" ${{ github.workspace }}/VERSION
+        fi
+    - name: Build and test package
+      run: |
+        cd ${{ github.workspace }}
+        source $HOME/miniconda/bin/activate mypy
+        # On OSX, where the file system may be case insensitive, one of the c++ headers
+        # that includes <version>, picks up this nanodbc file.
+        rm src/cython/nanodbc/VERSION
+        mkdir build
+        cd build
+        CC=${{matrix.config.CYANOCC}} CXX=${{matrix.config.CYANOCXX}} cmake -G Ninja ${{matrix.config.CYANOCMAKEFLAGS}} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME  -DCYANODBC_TARGET_PYTHON=${{matrix.config.PYTHONVER}} -DCYANODBC_ENABLE_COVERAGE=OFF ..
+        cmake --build .
+        cd ${{ github.workspace }}/build/src/cython
+        python setup.py bdist_wheel --plat-name ${{matrix.config.PLATWHEEL}}
+        pip install ${{ github.workspace }}/build/src/cython/dist/Cyanodbc*.whl
+        pytest --cov=cyanodbc ${{ github.workspace }}/tests
+    - name: Build and publish PROD
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        TRAVIS_TAG: ${{github.ref}}
+        TRAVIS_BUILD_DIR: ${{ github.workspace }}
+      run: |
+        source $HOME/miniconda/bin/activate mypy
+        ${{ github.workspace }}/ci/travis/deploy.sh
+    - name: Build and publish TEST
+      if: startsWith(github.ref, 'refs/heads/master')
+      env:
+        TEST_PYPI_USERNAME: ${{ secrets.TEST_PYPI_USERNAME }}
+        TEST_PYPI_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
+        TRAVIS_TAG: ""
+        TRAVIS_BUILD_DIR: ${{ github.workspace }}
+      run: |
+        source $HOME/miniconda/bin/activate mypy
+        ${{ github.workspace }}/ci/travis/deploy.sh
