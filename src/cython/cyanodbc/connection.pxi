@@ -4,10 +4,6 @@ cdef class Connection:
     cdef nanodbc.connection c_cnxn
     cdef unique_ptr[nanodbc.transaction] c_trxn_ptr
     cdef unique_ptr[nanodbc.catalog] c_cat_ptr
-    cdef unique_ptr[nanodbc.tables] c_tbl_ptr
-    cdef unique_ptr[nanodbc.procedures] c_proc_ptr
-    cdef unique_ptr[nanodbc.procedure_columns] c_proc_col_ptr
-    cdef unique_ptr[nanodbc.columns] c_col_ptr
 
     cdef list cursors
     cdef int _get_data_any_order
@@ -51,13 +47,14 @@ cdef class Connection:
         :param type: Type to search - should be 'VIEW' or 'TABLE'.  If an empty string, in theory the driver should return both.
         """
         out = []
+        cdef unique_ptr[nanodbc.tables] c_tbl_ptr
         cdef string c_table = table.encode()
         cdef string c_type = type.encode()
         cdef string c_schema = schema.encode()
         cdef string c_catalog = catalog.encode()
         try:
             with nogil:
-                self.c_tbl_ptr.reset(new nanodbc.tables(
+                c_tbl_ptr.reset(new nanodbc.tables(
                     deref(self.c_cat_ptr).find_tables(
                         table = c_table,
                         type = c_type,
@@ -69,12 +66,12 @@ cdef class Connection:
                 'Row',
                 ["catalog", "schema", "name", "type"],
                 rename=True)
-            while deref(self.c_tbl_ptr).next():
+            while deref(c_tbl_ptr).next():
                 out.append(Row(*[
-                deref(self.c_tbl_ptr).table_catalog().decode(),
-                deref(self.c_tbl_ptr).table_schema().decode(),
-                deref(self.c_tbl_ptr).table_name().decode(),
-                deref(self.c_tbl_ptr).table_type().decode()
+                deref(c_tbl_ptr).table_catalog().decode(),
+                deref(c_tbl_ptr).table_schema().decode(),
+                deref(c_tbl_ptr).table_name().decode(),
+                deref(c_tbl_ptr).table_type().decode()
                 ]))
             return out
         except RuntimeError as e:
@@ -92,12 +89,13 @@ cdef class Connection:
         :param table: The procedure to search for.
         """
         out = []
+        cdef unique_ptr[nanodbc.procedures] c_proc_ptr
         cdef string c_procedure = procedure.encode()
         cdef string c_schema = schema.encode()
         cdef string c_catalog = catalog.encode()
         try:
             with nogil:
-                self.c_proc_ptr.reset(new nanodbc.procedures(
+                c_proc_ptr.reset(new nanodbc.procedures(
                     deref(self.c_cat_ptr).find_procedures(
                         procedure = c_procedure,
                         schema = c_schema,
@@ -108,13 +106,13 @@ cdef class Connection:
                 'Row',
                 ["catalog", "schema", "name", "remarks", "type"],
                 rename=True)
-            while deref(self.c_proc_ptr).next():
+            while deref(c_proc_ptr).next():
                 out.append(Row(*[
-                deref(self.c_proc_ptr).procedure_catalog().decode(),
-                deref(self.c_proc_ptr).procedure_schema().decode(),
-                deref(self.c_proc_ptr).procedure_name().decode(),
-                deref(self.c_proc_ptr).procedure_remarks().decode(),
-                deref(self.c_proc_ptr).procedure_type()
+                deref(c_proc_ptr).procedure_catalog().decode(),
+                deref(c_proc_ptr).procedure_schema().decode(),
+                deref(c_proc_ptr).procedure_name().decode(),
+                deref(c_proc_ptr).procedure_remarks().decode(),
+                deref(c_proc_ptr).procedure_type()
                 ]))
             return out
         except RuntimeError as e:
@@ -133,13 +131,14 @@ cdef class Connection:
         :param column: If interested in a specific column only enter here.  Otherwise if empty string, should return information on all columns.
         """
         out = []
+        cdef unique_ptr[nanodbc.columns] c_col_ptr
         cdef string c_column = column.encode()
         cdef string c_table = table.encode()
         cdef string c_schema = schema.encode()
         cdef string c_catalog = catalog.encode()
         try:
             with nogil:
-                self.c_col_ptr.reset(new nanodbc.columns(
+                c_col_ptr.reset(new nanodbc.columns(
                     deref(self.c_cat_ptr).find_columns(
                         column = c_column,
                         table = c_table,
@@ -151,24 +150,24 @@ cdef class Connection:
                 'Row',
                 ["catalog", "schema", "table", "column", "data_type", "type_name", "column_size", "buffer_length", "decimal_digits", "numeric_precision_radix", "nullable", "remarks", "default", "sql_data_type", "sql_datetime_subtype", "char_octet_length"],
                 rename=True)
-            while deref(self.c_col_ptr).next():
+            while deref(c_col_ptr).next():
                 out.append(Row(*[
-                    deref(self.c_col_ptr).table_catalog().decode(),
-                    deref(self.c_col_ptr).table_schema().decode(),
-                    deref(self.c_col_ptr).table_name().decode(),
-                    deref(self.c_col_ptr).column_name().decode(),
-                    deref(self.c_col_ptr).data_type(),
-                    deref(self.c_col_ptr).type_name().decode(),
-                    deref(self.c_col_ptr).column_size(),
-                    deref(self.c_col_ptr).buffer_length(),
-                    deref(self.c_col_ptr).decimal_digits(),
-                    deref(self.c_col_ptr).numeric_precision_radix(),
-                    deref(self.c_col_ptr).nullable(),
-                    deref(self.c_col_ptr).remarks().decode(),
-                    deref(self.c_col_ptr).column_default().decode(),
-                    deref(self.c_col_ptr).sql_data_type(),
-                    deref(self.c_col_ptr).sql_datetime_subtype(),
-                    deref(self.c_col_ptr).char_octet_length()
+                    deref(c_col_ptr).table_catalog().decode(),
+                    deref(c_col_ptr).table_schema().decode(),
+                    deref(c_col_ptr).table_name().decode(),
+                    deref(c_col_ptr).column_name().decode(),
+                    deref(c_col_ptr).data_type(),
+                    deref(c_col_ptr).type_name().decode(),
+                    deref(c_col_ptr).column_size(),
+                    deref(c_col_ptr).buffer_length(),
+                    deref(c_col_ptr).decimal_digits(),
+                    deref(c_col_ptr).numeric_precision_radix(),
+                    deref(c_col_ptr).nullable(),
+                    deref(c_col_ptr).remarks().decode(),
+                    deref(c_col_ptr).column_default().decode(),
+                    deref(c_col_ptr).sql_data_type(),
+                    deref(c_col_ptr).sql_datetime_subtype(),
+                    deref(c_col_ptr).char_octet_length()
                 ]))
             return out
         except RuntimeError as e:
@@ -187,13 +186,14 @@ cdef class Connection:
         :param column: If interested in a specific column only enter here.  Otherwise if empty string, should return information on all columns.
         """
         out = []
+        cdef unique_ptr[nanodbc.procedure_columns] c_proc_col_ptr
         cdef string c_column = column.encode()
         cdef string c_procedure = procedure.encode()
         cdef string c_schema = schema.encode()
         cdef string c_catalog = catalog.encode()
         try:
             with nogil:
-                self.c_proc_col_ptr.reset(new nanodbc.procedure_columns(
+                c_proc_col_ptr.reset(new nanodbc.procedure_columns(
                     deref(self.c_cat_ptr).find_procedure_columns(
                         column = c_column,
                         procedure = c_procedure,
@@ -205,25 +205,25 @@ cdef class Connection:
                 'Row',
                 ["catalog", "schema", "procedure", "column", "column_type", "data_type", "type_name", "column_size", "buffer_length", "decimal_digits", "numeric_precision_radix", "nullable", "remarks", "default", "sql_data_type", "sql_datetime_subtype", "char_octet_length"],
                 rename=True)
-            while deref(self.c_proc_col_ptr).next():
+            while deref(c_proc_col_ptr).next():
                 out.append(Row(*[
-                    deref(self.c_proc_col_ptr).procedure_catalog().decode(),
-                    deref(self.c_proc_col_ptr).procedure_schema().decode(),
-                    deref(self.c_proc_col_ptr).procedure_name().decode(),
-                    deref(self.c_proc_col_ptr).column_name().decode(),
-                    deref(self.c_proc_col_ptr).column_type(),
-                    deref(self.c_proc_col_ptr).data_type(),
-                    deref(self.c_proc_col_ptr).type_name().decode(),
-                    deref(self.c_proc_col_ptr).column_size(),
-                    deref(self.c_proc_col_ptr).buffer_length(),
-                    deref(self.c_proc_col_ptr).decimal_digits(),
-                    deref(self.c_proc_col_ptr).numeric_precision_radix(),
-                    deref(self.c_proc_col_ptr).nullable(),
-                    deref(self.c_proc_col_ptr).remarks().decode(),
-                    deref(self.c_proc_col_ptr).column_default().decode(),
-                    deref(self.c_proc_col_ptr).sql_data_type(),
-                    deref(self.c_proc_col_ptr).sql_datetime_subtype(),
-                    deref(self.c_proc_col_ptr).char_octet_length()
+                    deref(c_proc_col_ptr).procedure_catalog().decode(),
+                    deref(c_proc_col_ptr).procedure_schema().decode(),
+                    deref(c_proc_col_ptr).procedure_name().decode(),
+                    deref(c_proc_col_ptr).column_name().decode(),
+                    deref(c_proc_col_ptr).column_type(),
+                    deref(c_proc_col_ptr).data_type(),
+                    deref(c_proc_col_ptr).type_name().decode(),
+                    deref(c_proc_col_ptr).column_size(),
+                    deref(c_proc_col_ptr).buffer_length(),
+                    deref(c_proc_col_ptr).decimal_digits(),
+                    deref(c_proc_col_ptr).numeric_precision_radix(),
+                    deref(c_proc_col_ptr).nullable(),
+                    deref(c_proc_col_ptr).remarks().decode(),
+                    deref(c_proc_col_ptr).column_default().decode(),
+                    deref(c_proc_col_ptr).sql_data_type(),
+                    deref(c_proc_col_ptr).sql_datetime_subtype(),
+                    deref(c_proc_col_ptr).char_octet_length()
                 ]))
             return out
         except RuntimeError as e:
